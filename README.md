@@ -55,11 +55,6 @@ All configuration is loaded from AWS SSM Parameter Store at startup. The environ
 
 ### SSM Parameters
 
-| `FLASK_ENV`   | SSM Key                        | Database      |
-|---------------|--------------------------------|---------------|
-| `development` | `devISSU-admin-connect-string` | `dev_undlFiles` |
-| `production`  | `prodISSU-admin-connect-string`| `undlFiles`   |
-
 The ECS task role must have `ssm:GetParameter` permission for the relevant key.
 
 ---
@@ -72,7 +67,7 @@ The collection queried to resolve documents.
 
 ```json
 {
-  "_id": "f2b7a2942690a486645ab9214d48bd6a",
+  "_id": "<id>",
   "filename": "A_79_PV.1-EN.pdf",
   "identifiers": [{ "type": "symbol", "value": "A/79/PV.1" }],
   "languages": ["EN"],
@@ -80,7 +75,7 @@ The collection queried to resolve documents.
   "size": 287700,
   "source": "gdoc-dlx-NY",
   "timestamp": "2025-02-08T08:10:25.796Z",
-  "uri": "undl-files.s3.amazonaws.com/f2b7a2942690a486645ab9214d48bd6a"
+  "uri": "undl-files.s3.amazonaws.com/<id>"
 }
 ```
 
