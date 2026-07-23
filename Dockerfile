@@ -1,0 +1,27 @@
+FROM python:3.12-slim
+
+# Create a non-root user to run the application
+RUN useradd --create-home appuser
+WORKDIR /home/appuser
+
+# Install dependencies first (better layer caching)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application source
+COPY app/ app/
+COPY wsgi.py .
+
+# Switch to non-root user
+USER appuser
+
+# Expose Gunicorn port
+EXPOSE 8000
+
+# Start Gunicorn with (2 * nproc) + 1 workers.
+# The shell form is used so the expression is evaluated at runtime.
+CMD gunicorn --workers $((2 * $(nproc) + 1)) \
+             --bind 0.0.0.0:8000 \
+             --access-logfile - \
+             --error-logfile - \
+             wsgi:app

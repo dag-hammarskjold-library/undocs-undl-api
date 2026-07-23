@@ -1,0 +1,11 @@
+tests/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.example
+docker-compose.yml
+Dockerfile
+.dockerignore
+*.md
