@@ -35,23 +35,22 @@ def load_config() -> Config:
     """
     Load application configuration from AWS SSM Parameter Store.
 
-    Both the MongoDB connection string and database name are fetched from SSM.
-    The ECS task role must have ssm:GetParameter permission for:
-      - devISSU-admin-connect-string
-      - devISSU-mongo-db
+    Selects dev or prod SSM parameters based on FLASK_ENV:
+      - development: devISSU-admin-connect-string  / db: dev_undlFiles
+      - production:  prodISSU-admin-connect-string / db: undlFiles
 
-    FLASK_ENV is the only optional environment variable (defaults to 'production').
+    FLASK_ENV defaults to 'production' if not set.
     """
     flask_env = os.environ.get("FLASK_ENV", "production")
 
     ssm = boto3.client("ssm")
 
-    if flask_env == 'development':
+    if flask_env == "development":
         mongo_uri = _fetch_ssm_parameter(ssm, "devISSU-admin-connect-string")
-        mongo_db = 'dev_undlFiles'
+        mongo_db = "dev_undlFiles"
     else:
-        mongo_uri = _fetch_ssm_parameter(ssm, "'prodISSU-admin-connect-string'")
-        mongo_db = 'undlFiles'
+        mongo_uri = _fetch_ssm_parameter(ssm, "prodISSU-admin-connect-string")
+        mongo_db = "undlFiles"
 
     return Config(
         mongo_uri=mongo_uri,

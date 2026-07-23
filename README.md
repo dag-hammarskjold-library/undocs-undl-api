@@ -1,6 +1,6 @@
 # undocs-undl-api
 
-A production-ready Flask API that resolves document symbols to file URLs via HTTP redirect.
+A production-ready Flask API that resolves UN document symbols to file URLs via HTTP redirect.
 
 ## Endpoint
 
@@ -8,21 +8,20 @@ A production-ready Flask API that resolves document symbols to file URLs via HTT
 GET /<language>/<symbol>
 ```
 
-| Parameter  | Description                                           | Example      |
-|------------|-------------------------------------------------------|--------------|
-| `language` | Lowercase language code                               | `en`         |
-| `symbol`   | Document symbol (slashes are part of the path)        | `A/79/PV.1`  |
+| Parameter  | Description                                    | Example     |
+|------------|------------------------------------------------|-------------|
+| `language` | Lowercase language code                        | `en`        |
+| `symbol`   | Document symbol (may contain slashes)          | `A/79/PV.1` |
 
 **Valid language codes:** `ar`, `en`, `fr`, `ru`, `es`, `zh`, `ot`
 
 ### Responses
 
-| Status | Meaning                                      |
-|--------|----------------------------------------------|
-| 302    | Document found — redirect to file URL        |
-| 400    | Invalid language code                        |
-| 403    | Client IP not in allowlist                   |
-| 404    | Document or language not found               |
+| Status | Meaning                                    |
+|--------|--------------------------------------------|
+| 302    | Document found — redirect to file URL      |
+| 400    | Invalid language code                      |
+| 404    | Document or language not found             |
 
 ### Example
 
@@ -34,12 +33,80 @@ curl -v http://localhost:5000/en/A/79/PV.1
 
 ---
 
+## How It Works
+
+1. The language code is validated against the allowed set.
+2. The language is uppercased and used to query MongoDB:
+   ```python
+   {"identifiers.value": "A/79/PV.1", "languages": "EN"}
+   ```
+3. The redirect URL is constructed as `https://` + the document's `uri` field.
+4. Every request is logged to the `request_logs` collection with timestamp, IP, symbol, language, status code, and response time.
+
+---
+
+## Configuration
+
+All configuration is loaded from AWS SSM Parameter Store at startup. The environment is controlled by a single variable:
+
+| Variable    | Required | Description                                             |
+|-------------|----------|---------------------------------------------------------|
+| `FLASK_ENV` | No       | `development` or `production` (defaults to `production`) |
+
+### SSM Parameters
+
+| `FLASK_ENV`   | SSM Key                        | Database      |
+|---------------|--------------------------------|---------------|
+| `development` | `devISSU-admin-connect-string` | `dev_undlFiles` |
+| `production`  | `prodISSU-admin-connect-string`| `undlFiles`   |
+
+The ECS task role must have `ssm:GetParameter` permission for the relevant key.
+
+---
+
+## MongoDB Collections
+
+### `files` (existing)
+
+The collection queried to resolve documents.
+
+```json
+{
+  "_id": "f2b7a2942690a486645ab9214d48bd6a",
+  "filename": "A_79_PV.1-EN.pdf",
+  "identifiers": [{ "type": "symbol", "value": "A/79/PV.1" }],
+  "languages": ["EN"],
+  "mimetype": "application/pdf",
+  "size": 287700,
+  "source": "gdoc-dlx-NY",
+  "timestamp": "2025-02-08T08:10:25.796Z",
+  "uri": "undl-files.s3.amazonaws.com/f2b7a2942690a486645ab9214d48bd6a"
+}
+```
+
+### `request_logs` (new)
+
+One document written per request for analytics.
+
+```json
+{
+  "timestamp": "2025-02-08T08:10:25.796Z",
+  "ip": "192.168.1.10",
+  "language": "en",
+  "symbol": "A/79/PV.1",
+  "status_code": 302,
+  "response_time_ms": 12
+}
+```
+
+---
+
 ## Local Development
 
 ### Prerequisites
 
 - Python 3.12+
-- Docker and Docker Compose
+- AWS credentials configured locally with access to the `devISSU-admin-connect-string` SSM parameter
 
 ### Setup
 
@@ -50,99 +117,30 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Edit `.env` and set `MONGO_URI` and `MONGO_DB` to point at your local or remote MongoDB.
+### Run
 
-### Run with Docker Compose
+```bash
+FLASK_ENV=development flask --app wsgi:app run
+```
+
+Or with Docker Compose (starts the app + a local MongoDB, but note the app will still call SSM for the connection string on startup — ensure AWS credentials are available):
 
 ```bash
 docker-compose up
 ```
 
-This starts the Flask app on port 5000 and a local MongoDB on port 27017.
-
 ### Run tests
+
+Unit tests mock all AWS and MongoDB calls — no live connections needed:
 
 ```bash
 pytest tests/test_health.py tests/test_routes.py tests/test_middleware.py -v
 ```
 
-Unit tests mock all MongoDB calls — no live database needed.
-
-The integration tests in `tests/test_db.py` require a running MongoDB:
+Integration tests for the database layer require a running MongoDB:
 
 ```bash
 MONGO_URI=mongodb://localhost:27017 pytest tests/test_db.py -v
-```
-
----
-
-## Configuration
-
-| Variable        | Required | Description                                                                 |
-|-----------------|----------|-----------------------------------------------------------------------------|
-| `MONGO_URI`     | No       | MongoDB connection string. If absent, fetched from AWS SSM (see below).     |
-| `MONGO_DB`      | Yes      | MongoDB database name.                                                       |
-| `FLASK_ENV`     | No       | `development` or `production` (default: `production`).                      |
-
-### AWS SSM Parameter Store
-
-When `MONGO_URI` is not set as an environment variable (all deployed environments),
-the app fetches it from AWS SSM Parameter Store at startup:
-
-- **Parameter name:** `devISSU-admin-connect-string`
-
-The ECS task role must have the following IAM permission:
-
-```json
-{
-  "Effect": "Allow",
-  "Action": "ssm:GetParameter",
-  "Resource": "arn:aws:ssm:<region>:<account-id>:parameter/devISSU-admin-connect-string"
-}
-```
-
----
-
-## MongoDB Collections
-
-### `files` (existing)
-
-Documents resolved by the API. The query used:
-
-```python
-{"identifiers.value": "<symbol>", "languages": "<LANG>"}
-```
-
-Language codes are uppercased before querying (`en` → `EN`).
-
-### `allowlist` (new)
-
-Controls which client IPs can access the API.
-
-```json
-{
-  "ip": "192.168.1.10",
-  "label": "System A",
-  "active": true
-}
-```
-
-Set `active: false` to revoke access without deleting the entry.
-Changes take effect immediately — no redeployment needed.
-
-### `request_logs` (new)
-
-One document per request, written after every response.
-
-```json
-{
-  "timestamp": "<ISO datetime>",
-  "ip": "192.168.1.10",
-  "language": "en",
-  "symbol": "A/79/PV.1",
-  "status_code": 302,
-  "response_time_ms": 12
-}
 ```
 
 ---
@@ -168,7 +166,6 @@ docker push <account-id>.dkr.ecr.<region>.amazonaws.com/undocs-undl-api:latest
     "image": "<account-id>.dkr.ecr.<region>.amazonaws.com/undocs-undl-api:latest",
     "portMappings": [{"containerPort": 8000}],
     "environment": [
-      {"name": "MONGO_DB", "value": "undocs"},
       {"name": "FLASK_ENV", "value": "production"}
     ],
     "logConfiguration": {
@@ -183,11 +180,17 @@ docker push <account-id>.dkr.ecr.<region>.amazonaws.com/undocs-undl-api:latest
 }
 ```
 
-`MONGO_URI` is intentionally absent — the app will fetch it from SSM at startup.
+The ECS task role must have:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": "ssm:GetParameter",
+  "Resource": "arn:aws:ssm:<region>:<account-id>:parameter/prodISSU-admin-connect-string"
+}
+```
 
 ### ALB health check
-
-Configure the ALB target group health check to:
 
 - **Path:** `/health`
 - **Protocol:** HTTP
@@ -202,14 +205,14 @@ Configure the ALB target group health check to:
 undocs-undl-api/
 ├── app/
 │   ├── __init__.py       # Flask app factory, before/after request hooks
-│   ├── config.py         # Config loading (env vars + AWS SSM)
+│   ├── config.py         # Config loading from AWS SSM (dev/prod switch)
 │   ├── db.py             # PyMongo client and query functions
 │   └── routes.py         # Redirect blueprint
 ├── tests/
 │   ├── conftest.py       # Shared fixtures for integration tests
 │   ├── test_db.py        # Integration tests for db.py (requires MongoDB)
 │   ├── test_health.py    # Health endpoint tests
-│   ├── test_middleware.py # IP allowlist and request logging tests
+│   ├── test_middleware.py # Request logging tests
 │   └── test_routes.py    # Redirect route unit tests
 ├── wsgi.py               # Gunicorn entry point
 ├── Dockerfile

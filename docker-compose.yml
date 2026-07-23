@@ -4,8 +4,6 @@ services:
     ports:
       - "5000:8000"
     environment:
-      MONGO_URI: mongodb://mongo:27017
-      MONGO_DB: undocs
       FLASK_ENV: development
     depends_on:
       mongo:
