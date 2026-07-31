@@ -28,7 +28,7 @@ GET /<language>/<symbol>
 ```bash
 curl -v http://localhost:5000/en/A/79/PV.1
 # HTTP/1.1 302 FOUND
-# Location: https://undl-files.s3.amazonaws.com/<id>
+# Location: https://<url>/<id>
 ```
 
 ---
@@ -75,7 +75,7 @@ The collection queried to resolve documents.
   "size": 287700,
   "source": "gdoc-dlx-NY",
   "timestamp": "2025-02-08T08:10:25.796Z",
-  "uri": "undl-files.s3.amazonaws.com/<id>"
+  "uri": "<url>/<id>"
 }
 ```
 
