@@ -17,11 +17,11 @@ GET /<language>/<symbol>
 
 ### Responses
 
-| Status | Meaning                                    |
-|--------|--------------------------------------------|
-| 302    | Document found — redirect to file URL      |
-| 400    | Invalid language code                      |
-| 404    | Document or language not found             |
+| Status | Meaning                                              |
+|--------|------------------------------------------------------|
+| 200    | Document found — file is streamed from the target URL |
+| 400    | Invalid language code                                |
+| 404    | Document or language not found                       |
 
 ### Example
 
@@ -122,6 +122,18 @@ Or with Docker Compose (starts the app + a local MongoDB, but note the app will 
 
 ```bash
 docker-compose up
+```
+
+### Run with nginx (reverse proxy)
+
+The included `docker-compose.yml` starts an `nginx` service that proxies port 80 to the Flask app running in the `api` container.
+
+```bash
+# Build images and start services (api, mongo, nginx)
+docker-compose up --build
+
+# Access the API via nginx on port 80
+curl -v http://localhost/health
 ```
 
 ### Run tests

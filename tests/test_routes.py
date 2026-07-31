@@ -45,32 +45,55 @@ def client():
 
 
 # ---------------------------------------------------------------------------
-# Successful redirect
+# Successful proxy response
 # ---------------------------------------------------------------------------
 
-class TestSuccessfulRedirect:
-    def test_returns_302(self, client):
-        with patch("app.db.find_document", return_value=SAMPLE_DOC):
-            response = client.get("/en/A/79/PV.1")
-        assert response.status_code == 302
+class FakeRemoteResponse:
+    def __init__(self, body, headers=None):
+        self._body = body
+        self.headers = headers or {}
 
-    def test_location_header_is_https_uri(self, client):
-        with patch("app.db.find_document", return_value=SAMPLE_DOC):
+    def read(self):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class TestSuccessfulProxyResponse:
+    def test_returns_200(self, client):
+        with patch("app.db.find_document", return_value=SAMPLE_DOC), \
+             patch("app.routes.urlopen", return_value=FakeRemoteResponse(b"file-body", {"get": lambda *args, **kwargs: None})):
             response = client.get("/en/A/79/PV.1")
-        assert response.headers["Location"] == (
-            "https://undl-files.s3.amazonaws.com/f2b7a2942690a486645ab9214d48bd6a"
-        )
+        assert response.status_code == 200
+
+    def test_returns_remote_body(self, client):
+        with patch("app.db.find_document", return_value=SAMPLE_DOC), \
+             patch("app.routes.urlopen", return_value=FakeRemoteResponse(b"file-body")):
+            response = client.get("/en/A/79/PV.1")
+        assert response.data == b"file-body"
+
+    def test_does_not_set_location_header(self, client):
+        with patch("app.db.find_document", return_value=SAMPLE_DOC), \
+             patch("app.routes.urlopen", return_value=FakeRemoteResponse(b"file-body")):
+            response = client.get("/en/A/79/PV.1")
+        assert "Location" not in response.headers
 
     def test_find_document_called_with_uppercased_language(self, client):
-        with patch("app.db.find_document", return_value=SAMPLE_DOC) as mock_find:
+        with patch("app.db.find_document", return_value=SAMPLE_DOC) as mock_find, \
+             patch("app.routes.urlopen", return_value=FakeRemoteResponse(b"file-body")):
             client.get("/en/A/79/PV.1")
         mock_find.assert_called_once_with("A/79/PV.1", "EN")
 
     def test_all_valid_language_codes_accepted(self, client):
         for lang in ("ar", "en", "fr", "ru", "es", "zh", "ot"):
-            with patch("app.db.find_document", return_value=SAMPLE_DOC):
+            with patch("app.db.find_document", return_value=SAMPLE_DOC), \
+                 patch("app.routes.urlopen", return_value=FakeRemoteResponse(b"file-body")):
                 response = client.get(f"/{lang}/A/79/PV.1")
-            assert response.status_code == 302, f"Expected 302 for language '{lang}'"
+            assert response.status_code == 200, f"Expected 200 for language '{lang}'"
 
 
 # ---------------------------------------------------------------------------

@@ -1,4 +1,7 @@
-from flask import Blueprint, jsonify, redirect
+from urllib.request import Request, urlopen
+from urllib.error import URLError, HTTPError
+
+from flask import Blueprint, Response, jsonify
 
 import app.db as db
 
@@ -37,4 +40,17 @@ def resolve_document(language: str, symbol: str):
         }), 404
 
     url = "https://" + doc["uri"]
-    return redirect(url, code=302)
+
+    try:
+        request = Request(url, headers={"User-Agent": "undocs-undl-api/1.0"})
+        with urlopen(request, timeout=5) as remote_response:
+            headers = remote_response.headers or {}
+            content_type = headers.get("Content-Type", "application/octet-stream")
+            body = remote_response.read()
+    except (URLError, HTTPError, TimeoutError) as exc:
+        return jsonify({
+            "error": "Unable to fetch document content",
+            "detail": str(exc),
+        }), 502
+
+    return Response(body, content_type=content_type, status=200)
