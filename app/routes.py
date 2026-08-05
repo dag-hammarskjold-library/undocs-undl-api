@@ -30,7 +30,9 @@ def resolve_document(language: str, symbol: str):
             "valid_languages": sorted(VALID_LANGUAGES),
         }), 400
 
-    doc = db.find_document(symbol, language.upper())
+    # The external language code 'ot' maps to 'de' in the database.
+    db_language = "DE" if language.lower() == "ot" else language.upper()
+    doc = db.find_document(symbol, db_language)
 
     if doc is None:
         return jsonify({
