@@ -4,26 +4,32 @@ version = 0.1
 stack_name = "undocs-undl-api"
 resolve_s3 = true
 s3_prefix = "undocs-undl-api"
-region = "us-east-1"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "FlaskEnv=production ProvisionedConcurrentExecutions=0"
-image_repositories = []
+parameter_overrides = "FlaskEnv=\"production\" ProvisionedConcurrentExecutions=\"1\""
+image_repositories = ["UndlApiFunction=950236537949.dkr.ecr.us-east-1.amazonaws.com/undocsundlapi588d5106/undlapifunction60d4ba24repo"]
 
 [default.build.parameters]
 use_container = true
 
-[dev.deploy.parameters]
-stack_name = "undocs-undl-api-dev"
-resolve_s3 = true
-s3_prefix = "undocs-undl-api-dev"
+
+[default.global.parameters]
 region = "us-east-1"
-confirm_changeset = false
+[dev.deploy.parameters]
+stack_name = "undocs-undl-api"
+resolve_s3 = true
+s3_prefix = "undocs-undl-api"
+region = "us-east-1"
+confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "FlaskEnv=development ProvisionedConcurrentExecutions=0"
+parameter_overrides = "FlaskEnv=\"development\" ProvisionedConcurrentExecutions=\"1\""
 resolve_image_repos = true
 fail_on_empty_changeset = false
+image_repositories = ["UndlApiFunction=950236537949.dkr.ecr.us-east-1.amazonaws.com/undocsundlapi588d5106/undlapifunction60d4ba24repo"]
 
+
+[dev.global.parameters]
+region = "us-east-1"
 [prod.deploy.parameters]
 stack_name = "undocs-undl-api-prod"
 resolve_s3 = true
@@ -31,6 +37,6 @@ s3_prefix = "undocs-undl-api-prod"
 region = "us-east-1"
 confirm_changeset = false
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "FlaskEnv=production ProvisionedConcurrentExecutions=0"
+parameter_overrides = "FlaskEnv=production ProvisionedConcurrentExecutions=1"
 resolve_image_repos = true
 fail_on_empty_changeset = false

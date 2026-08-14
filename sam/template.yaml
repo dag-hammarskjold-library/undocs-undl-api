@@ -31,6 +31,8 @@ Resources:
   UndlApiFunction:
     Type: AWS::Serverless::Function
     Properties:
+      Architectures:
+        - arm64
       PackageType: Image
       Environment:
         Variables:
@@ -58,8 +60,6 @@ Resources:
             Path: /{language}/{symbol+}
             Method: GET
       AutoPublishAlias: live
-      ProvisionedConcurrencyConfig:
-        ProvisionedConcurrentExecutions: !Ref ProvisionedConcurrentExecutions
     Metadata:
       Dockerfile: Dockerfile
       DockerContext: ..

@@ -12,6 +12,10 @@ existing repo, using the following assumptions:
   Lambda, API Gateway, and CloudWatch already provide by default.
 
 
+## Prerequisites
+
+The deployment requires an AWS IAM Role configured with a Trust Relationship to GitHub via OIDC. This role must have permissions to manage CloudFormation, S3, ECR, Lambda, and API Gateway. The ARN of this role must be stored as a GitHub Secret: `AWS_DEPLOY_ROLE_ARN`.
+
 ## What the SAM template does
 
 - Builds the existing Dockerfile as a Lambda container image (`PackageType: Image`).
@@ -34,31 +38,41 @@ existing repo, using the following assumptions:
 
 ## Deploy steps
 
-From the repo root, with the SAM CLI and Docker installed:
+### Automated Deployment (CI/CD)
+The project is configured with GitHub Actions for automated deployment:
+
+- **Development**: Pushing to the `main` branch automatically deploys to the development stack.
+- **Production**: Publishing a GitHub Release (with a semantic version tag) automatically deploys to the production stack.
+
+These workflows use OIDC to authenticate with AWS via the `AWS_DEPLOY_ROLE_ARN` secret.
+
+### Manual Deployment
+If you need to deploy manually from your local machine, use the `--config-env` flag to select the environment:
 
 ```bash
-# one-time: build the container image and run sam deploy interactively
-# to confirm the stack name, region, and capabilities
 cd sam
 sam build --use-container
-sam deploy --guided
+
+# Deploy to development
+sam deploy --config-env dev
+
+# Deploy to production
+sam deploy --config-env prod
 ```
 
-After the first guided deploy, `samconfig.toml` has your answers saved, so
-subsequent deploys are just:
+Configuration for these environments (stack names, parameters) is managed in `sam/samconfig.toml`.
 
-```bash
-sam build --use-container
-sam deploy
-```
+## Environment Configuration
 
-The stack output `ApiEndpoint` is the `<base_url>` for the ToR's
-`<base_url>/<language>/<document_symbol>` pattern. That's what gets handed
-to the DGACM/UNDOCS team to wire into their failover switch.
+The application uses a `FlaskEnv` parameter to switch between environments:
+- **`development`**: Connects to `devISSU-admin-connect-string` (SSM) and `dev_undlFiles` (Mongo).
+- **`production`**: Connects to `prodISSU-admin-connect-string` (SSM) and `undlFiles` (Mongo).
+
+This parameter is injected into the Lambda environment via `sam/template.yaml` and read by `app/config.py`.
 
 ## Before the August simulation
 
-Run a load test against the deployed `ApiEndpoint` at the 1-2M/month
+Run a load test against the **development** `ApiEndpoint` first at the 1-2M/month
 baseline rate (and some headroom above it) to confirm Gunicorn worker
 count, Mongo connection handling, and the throttling limits above hold up.
 Adjust `ThrottlingBurstLimit`/`ThrottlingRateLimit` or
