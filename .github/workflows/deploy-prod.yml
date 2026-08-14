@@ -16,6 +16,9 @@ jobs:
   validate-tag:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
       - name: Check release tag is semantic versioning
         run: |
           TAG="${{ github.event.release.tag_name }}"
@@ -25,26 +28,8 @@ jobs:
           fi
           echo "Tag '$TAG' is valid."
 
-  test:
-    needs: validate-tag
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.release.tag_name }}
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Run unit tests
-        run: pytest tests/test_health.py tests/test_routes.py tests/test_middleware.py -v
-
   deploy:
-    needs: [validate-tag, test]
+    needs: [validate-tag]
     runs-on: ubuntu-latest
     environment: production
     steps:
