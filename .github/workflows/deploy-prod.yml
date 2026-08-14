@@ -47,8 +47,8 @@ jobs:
 
       - name: Build
         working-directory: sam
-        run: sam build --use-container
+        run: sam build --use-container --parameter-overrides FunctionArchitecture=x86_64
 
       - name: Deploy
         working-directory: sam
-        run: sam deploy --config-env prod
+        run: sam deploy --config-env prod --parameter-overrides FunctionArchitecture=x86_64 --no-confirm-changeset
