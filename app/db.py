@@ -37,6 +37,7 @@ def find_document(symbol: str, language: str) -> dict | None:
     )
 
 
+
 def log_request(data: dict):
     """
     Insert a request log entry into the request_logs collection.

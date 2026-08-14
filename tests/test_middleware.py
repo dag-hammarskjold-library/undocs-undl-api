@@ -30,6 +30,21 @@ FAKE_CONFIG = Config(
 )
 
 
+class FakeRemoteResponse:
+    def __init__(self, body=b"body"):
+        self._body = body
+        self.headers = {}
+
+    def read(self):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
 @pytest.fixture
 def client():
     with patch("app.config.load_config", return_value=FAKE_CONFIG), \
@@ -47,11 +62,12 @@ def client():
 class TestRequestLogging:
     def test_log_written_on_successful_redirect(self, client):
         with patch("app.db.find_document", return_value=SAMPLE_DOC), \
+             patch("app.routes.urlopen", return_value=FakeRemoteResponse(b"body")), \
              patch("app.db.log_request") as mock_log:
             client.get("/en/A/79/PV.1")
         mock_log.assert_called_once()
         logged = mock_log.call_args[0][0]
-        assert logged["status_code"] == 302
+        assert logged["status_code"] == 200
         assert logged["language"] == "en"
         assert logged["symbol"] == "A/79/PV.1"
         assert "timestamp" in logged
@@ -83,9 +99,10 @@ class TestRequestLogging:
     def test_logging_failure_does_not_affect_response(self, client):
         """A broken log_request must not cause a 500."""
         with patch("app.db.find_document", return_value=SAMPLE_DOC), \
+             patch("app.routes.urlopen", return_value=FakeRemoteResponse(b"body")), \
              patch("app.db.log_request", side_effect=Exception("db down")):
             response = client.get("/en/A/79/PV.1")
-        assert response.status_code == 302
+        assert response.status_code == 200
 
     def test_ip_captured_from_x_forwarded_for(self, client):
         with patch("app.db.find_document", return_value=SAMPLE_DOC), \

@@ -14,5 +14,6 @@ COPY wsgi.py .
 # Expose Gunicorn port
 EXPOSE 8000
 
+
 # Start Gunicorn
 CMD ["gunicorn", "--workers", "2", "--bind", "0.0.0.0:8000", "--access-logfile", "-", "--error-logfile", "-", "wsgi:app"]

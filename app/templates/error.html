@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Error</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      color: #333;
+      padding: 40px 20px;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    header img {
+      width: 50%;
+      max-width: 480px;
+      min-width: 180px;
+      height: auto;
+    }
+    main {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 1.6rem; margin-bottom: 0.75rem; }
+    p  { line-height: 1.6; margin-bottom: 0.75rem; }
+    ul { line-height: 1.8; padding-left: 1.25rem; margin-bottom: 0.75rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="https://digitallibrary.un.org/">
+      <img src="https://digitallibrary.un.org/img/main_logo_en.png"
+           alt="United Nations Digital Library">
+    </a>
+  </header>
+  <main>
+    <h1>Error</h1>
+    <p>{{ message }}</p>
+    <p>Please consider the following:</p>
+    <ul>
+      <li>Verify the link contains the correct document symbol and language code.</li>
+      <li>The document is not yet released or is currently unavailable.</li>
+      <li>You are not authorized to access the document. Unauthorized access may lead to this error.</li>
+      <li>Check your security settings and make sure this site has not been blocked.</li>
+    </ul>
+    <p>Visit <a href="https://undocs.org">undocs.org</a> for more information.</p>
+  </main>
+</body>
+</html>
