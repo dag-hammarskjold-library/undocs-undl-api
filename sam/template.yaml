@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  undocs-undl-api - UN Digital Library failover endpoint for UNDOCS.
+  Runs the existing Flask/Gunicorn container unchanged on Lambda via the
+  AWS Lambda Web Adapter, fronted by an HTTP API.
+
+Parameters:
+  FlaskEnv:
+    Type: String
+    Default: production
+    AllowedValues:
+      - production
+      - development
+    Description: Selects which SSM parameter/Mongo database the app connects to.
+
+  ProvisionedConcurrentExecutions:
+    Type: Number
+    Default: 0
+    Description: >
+      Warm Lambda instances kept ready at all times. Left at 0 by default
+      since cold-start latency is acceptable for this deployment; raise
+      this later if a stricter latency target is set.
+
+Globals:
+  Function:
+    Timeout: 10
+    MemorySize: 512
+
+Resources:
+  UndlApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Architectures:
+        - arm64
+      PackageType: Image
+      Environment:
+        Variables:
+          FLASK_ENV: !Ref FlaskEnv
+          PORT: "8000"
+          AWS_LWA_READINESS_CHECK_PATH: /health
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource:
+                - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/prodISSU-admin-connect-string
+                - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/devISSU-admin-connect-string
+      Events:
+        Health:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref UndlHttpApi
+            Path: /health
+            Method: GET
+        Redirect:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref UndlHttpApi
+            Path: /{language}/{symbol+}
+            Method: GET
+      AutoPublishAlias: live
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: ..
+      DockerTag: latest
+
+  UndlHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Description: Public endpoint for UNDL document redirects (UNDOCS failover target)
+      DefaultRouteSettings:
+        # Sized for a 1-2 million hits/month baseline. Revisit once real
+        # peak-to-average numbers or a formal load-test result are available.
+        ThrottlingBurstLimit: 1000
+        ThrottlingRateLimit: 500
+
+Outputs:
+  ApiEndpoint:
+    Description: Base URL for the failover API (this is the <base_url> in the ToR's endpoint pattern)
+    Value: !Sub https://${UndlHttpApi}.execute-api.${AWS::Region}.amazonaws.com
+  FunctionArn:
+    Description: ARN of the underlying Lambda function
+    Value: !GetAtt UndlApiFunction.Arn

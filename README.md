@@ -55,7 +55,7 @@ All configuration is loaded from AWS SSM Parameter Store at startup. The environ
 
 ### SSM Parameters
 
-The ECS task role must have `ssm:GetParameter` permission for the relevant key.
+The Lambda function role must have `ssm:GetParameter` permission for the relevant key.
 
 ---
 
@@ -152,56 +152,24 @@ MONGO_URI=mongodb://localhost:27017 pytest tests/test_db.py -v
 
 ---
 
-## Deployment (AWS ECS Fargate)
+## Deployment (AWS SAM)
 
-### Build and push to ECR
-
+### Build and deploy
 ```bash
-aws ecr get-login-password --region <region> | \
-  docker login --username AWS --password-stdin <account-id>.dkr.ecr.<region>.amazonaws.com
-
-docker build -t undocs-undl-api .
-docker tag undocs-undl-api:latest <account-id>.dkr.ecr.<region>.amazonaws.com/undocs-undl-api:latest
-docker push <account-id>.dkr.ecr.<region>.amazonaws.com/undocs-undl-api:latest
+sam build
+sam deploy --guided
 ```
 
-### ECS Task Definition (key fields)
+### Architecture
+The API is deployed as a container image on AWS Lambda using the **AWS Lambda Web Adapter**, fronted by an **HTTP API**. The `Dockerfile` defines the environment, allowing the Flask/Gunicorn setup to run on Lambda without code changes.
 
-```json
-{
-  "containerDefinitions": [{
-    "image": "<account-id>.dkr.ecr.<region>.amazonaws.com/undocs-undl-api:latest",
-    "portMappings": [{"containerPort": 8000}],
-    "environment": [
-      {"name": "FLASK_ENV", "value": "production"}
-    ],
-    "logConfiguration": {
-      "logDriver": "awslogs",
-      "options": {
-        "awslogs-group": "/ecs/undocs-undl-api",
-        "awslogs-region": "<region>",
-        "awslogs-stream-prefix": "ecs"
-      }
-    }
-  }]
-}
-```
+### Permissions
+The Lambda function role is configured via the SAM template to allow `ssm:GetParameter` for:
+- `arn:aws:ssm:<region>:<account-id>:parameter/prodISSU-admin-connect-string`
+- `arn:aws:ssm:<region>:<account-id>:parameter/devISSU-admin-connect-string`
 
-The ECS task role must have:
-
-```json
-{
-  "Effect": "Allow",
-  "Action": "ssm:GetParameter",
-  "Resource": "arn:aws:ssm:<region>:<account-id>:parameter/prodISSU-admin-connect-string"
-}
-```
-
-### ALB health check
-
+### Health Check
 - **Path:** `/health`
-- **Protocol:** HTTP
-- **Port:** 8000
 - **Expected status:** 200
 
 ---
