@@ -6,6 +6,14 @@ Description: >
   AWS Lambda Web Adapter, fronted by an HTTP API.
 
 Parameters:
+  FunctionArchitecture:
+    Type: String
+    Default: arm64
+    AllowedValues:
+      - arm64
+      - x86_64
+    Description: Lambda function architecture
+    
   FlaskEnv:
     Type: String
     Default: production
@@ -32,7 +40,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Architectures:
-        - arm64
+        - !Ref FunctionArchitecture
       PackageType: Image
       Environment:
         Variables:
