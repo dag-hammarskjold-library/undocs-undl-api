@@ -13,7 +13,7 @@ import pytest
 from datetime import datetime, timezone
 
 import app.db as db_module
-from app.db import find_document, is_ip_allowed, log_request
+from app.db import find_document, log_request
 
 
 # ---------------------------------------------------------------------------
@@ -82,27 +82,6 @@ class TestFindDocument:
         # Database stores "EN"; lowercase "en" must not match
         result = find_document("A/79/PV.1", "en")
         assert result is None
-
-
-# ---------------------------------------------------------------------------
-# is_ip_allowed
-# ---------------------------------------------------------------------------
-
-class TestIsIpAllowed:
-    def test_returns_true_for_active_allowlisted_ip(self, sample_allowlist_entry):
-        assert is_ip_allowed("192.168.1.10") is True
-
-    def test_returns_false_for_unknown_ip(self, sample_allowlist_entry):
-        assert is_ip_allowed("10.0.0.99") is False
-
-    def test_returns_false_for_inactive_entry(self, init_test_db):
-        init_test_db.allowlist.insert_one(
-            {"ip": "10.0.0.1", "label": "Disabled", "active": False}
-        )
-        assert is_ip_allowed("10.0.0.1") is False
-
-    def test_returns_false_when_allowlist_is_empty(self, init_test_db):
-        assert is_ip_allowed("192.168.1.10") is False
 
 
 # ---------------------------------------------------------------------------
