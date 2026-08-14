@@ -33,6 +33,8 @@ jobs:
 
       - name: Build
         working-directory: sam
+        env:
+          DOCKER_BUILDKIT: 1
         run: sam build --use-container
 
       - name: Deploy
