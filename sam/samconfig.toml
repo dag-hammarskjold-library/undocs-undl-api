@@ -25,7 +25,7 @@ capabilities = "CAPABILITY_IAM"
 parameter_overrides = "FlaskEnv=\"development\" ProvisionedConcurrentExecutions=\"1\""
 resolve_image_repos = true
 fail_on_empty_changeset = false
-image_repositories = ["UndlApiFunction=950236537949.dkr.ecr.us-east-1.amazonaws.com/undocsundlapi588d5106/undlapifunction60d4ba24repo"]
+
 
 
 [dev.global.parameters]
