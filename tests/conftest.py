@@ -1,8 +1,7 @@
 import os
 
 import pytest
-from pymongo import MongoClient
-
+import mongomock
 
 # ---------------------------------------------------------------------------
 # Shared fixture: raw PyMongo test database
@@ -11,16 +10,13 @@ from pymongo import MongoClient
 @pytest.fixture(scope="session")
 def test_db():
     """
-    Connect to a local MongoDB instance and return a dedicated test database.
-    Drops the database after the test session to leave no residue.
+    Use mongomock to provide an in-memory MongoDB instance.
     """
-    uri = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
+    client = mongomock.MongoClient()
     db_name = os.environ.get("MONGO_DB_TEST", "undocs_test")
-    client = MongoClient(uri)
     db = client[db_name]
     yield db
-    client.drop_database(db_name)
-    client.close()
+    # No need to drop or close for in-memory mock
 
 
 # ---------------------------------------------------------------------------

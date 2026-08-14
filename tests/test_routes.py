@@ -152,7 +152,7 @@ class TestDocumentNotFound:
     def test_error_page_contains_language(self, client):
         with patch("app.db.find_document", return_value=None):
             response = client.get("/en/A/79/PV.1")
-        assert b"EN" in response.data
+        assert b"en" in response.data
 
     def test_symbol_with_multiple_slashes_is_captured(self, client):
         """<path:symbol> must capture symbols like A/79/PV.1 containing slashes."""
