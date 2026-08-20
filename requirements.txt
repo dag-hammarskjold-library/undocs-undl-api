@@ -1,7 +1,8 @@
 Flask==3.1.1
 pymongo==4.12.1
 gunicorn==23.0.0
-boto3==1.38.23
+boto3==1.43.75
+botocore[crt]==1.43.75
 pytest==8.3.5
 pytest-mock==3.14.0
 mongomock==4.3.0
