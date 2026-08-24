@@ -1,9 +1,14 @@
+import re
 from datetime import datetime, timezone
 
 from pymongo import MongoClient
+from pymongo.collation import Collation
 
 _client = None
 _db = None
+
+# Case-insensitive collation matching the existing index on identifiers.value
+_ci_collation = Collation(locale="en", strength=2)
 
 
 def init_db(mongo_uri: str, mongo_db: str):
@@ -24,6 +29,9 @@ def find_document(symbol: str, language: str) -> dict | None:
     """
     Look up a document by its symbol and language code.
 
+    Uses collation with strength=2 (case-insensitive) to leverage the
+    existing collation-aware index on identifiers.value.
+
     Args:
         symbol:   Document symbol, e.g. "A/79/PV.1"
         language: Uppercase language code, e.g. "EN"
@@ -33,9 +41,9 @@ def find_document(symbol: str, language: str) -> dict | None:
     """
     db = get_db()
     return db.files.find_one(
-        {"identifiers.value": symbol, "languages": language}
+        {"identifiers.value": symbol, "languages": language},
+        collation=_ci_collation,
     )
-
 
 
 def log_request(data: dict):
@@ -48,6 +56,7 @@ def log_request(data: dict):
     """
     db = get_db()
     db.request_logs.insert_one(data)
+
 
 def is_ip_allowed():
     """
