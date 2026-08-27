@@ -30,9 +30,21 @@ Parameters:
       since cold-start latency is acceptable for this deployment; raise
       this later if a stricter latency target is set.
 
+  ReservedConcurrentExecutions:
+    Type: Number
+    Default: 100
+    Description: >
+      Maximum number of simultaneous executions. Because Function URLs have
+      no built-in request throttling (unlike the previous HTTP API), this
+      caps concurrency to protect against runaway cost and abuse. At the
+      expected ~0.75 req/sec baseline this ceiling is generous; raise it if
+      legitimate concurrent streaming demand grows.
+
 Globals:
   Function:
-    Timeout: 10
+    # 120s accommodates streaming the largest documents (>100 MB) to slower
+    # clients. Function URLs support up to 15 minutes if ever needed.
+    Timeout: 120
     MemorySize: 512
 
 Resources:
@@ -64,6 +76,9 @@ Resources:
       FunctionUrlConfig:
         AuthType: NONE
         InvokeMode: RESPONSE_STREAM
+      # Function URLs have no built-in throttling, so concurrency is capped
+      # here as the equivalent safeguard.
+      ReservedConcurrentExecutions: !Ref ReservedConcurrentExecutions
       AutoPublishAlias: live
     Metadata:
       Dockerfile: Dockerfile
