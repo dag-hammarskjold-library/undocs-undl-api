@@ -83,7 +83,6 @@ def resolve_document(language: str, symbol: str):
 
     headers = remote_response.headers or {}
     content_type = headers.get("Content-Type", "application/octet-stream")
-    content_length = headers.get("Content-Length")
     filename = _download_filename(doc, symbol, language)
 
     def generate():
@@ -99,7 +98,9 @@ def resolve_document(language: str, symbol: str):
 
     response = Response(generate(), content_type=content_type, status=200)
     response.headers["Content-Disposition"] = f'inline; filename="{filename}"'
-    if content_length:
-        response.headers["Content-Length"] = content_length
+
+    # Note: no Content-Length is set. The response is streamed with
+    # Transfer-Encoding: chunked, and setting Content-Length alongside
+    # chunked encoding is contradictory and can truncate the download.
 
     return response
