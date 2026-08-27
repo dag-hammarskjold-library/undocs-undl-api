@@ -47,6 +47,10 @@ Resources:
           FLASK_ENV: !Ref FlaskEnv
           PORT: "8000"
           AWS_LWA_READINESS_CHECK_PATH: /health
+          # Enable response streaming in the Lambda Web Adapter so large
+          # files are streamed to the client rather than buffered (which
+          # would hit the 6 MB synchronous response payload limit).
+          AWS_LWA_INVOKE_MODE: response_stream
       Policies:
         - Statement:
             - Effect: Allow
@@ -54,39 +58,22 @@ Resources:
               Resource:
                 - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/prodISSU-admin-connect-string
                 - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/devISSU-admin-connect-string
-      Events:
-        Health:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref UndlHttpApi
-            Path: /health
-            Method: GET
-        Redirect:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref UndlHttpApi
-            Path: /{language}/{symbol+}
-            Method: GET
+      # A Lambda Function URL is used instead of an HTTP API because response
+      # streaming (up to 20 MB soft limit, raisable to 6 GB) is only supported
+      # via Function URLs, not API Gateway.
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: RESPONSE_STREAM
       AutoPublishAlias: live
     Metadata:
       Dockerfile: Dockerfile
       DockerContext: ..
       DockerTag: latest
 
-  UndlHttpApi:
-    Type: AWS::Serverless::HttpApi
-    Properties:
-      Description: Public endpoint for UNDL document redirects (UNDOCS failover target)
-      DefaultRouteSettings:
-        # Sized for a 1-2 million hits/month baseline. Revisit once real
-        # peak-to-average numbers or a formal load-test result are available.
-        ThrottlingBurstLimit: 1000
-        ThrottlingRateLimit: 500
-
 Outputs:
-  ApiEndpoint:
+  FunctionUrl:
     Description: Base URL for the failover API (this is the <base_url> in the ToR's endpoint pattern)
-    Value: !Sub https://${UndlHttpApi}.execute-api.${AWS::Region}.amazonaws.com
+    Value: !GetAtt UndlApiFunctionUrl.FunctionUrl
   FunctionArn:
     Description: ARN of the underlying Lambda function
     Value: !GetAtt UndlApiFunction.Arn

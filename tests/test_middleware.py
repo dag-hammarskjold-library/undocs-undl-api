@@ -31,18 +31,25 @@ FAKE_CONFIG = Config(
 
 
 class FakeRemoteResponse:
+    """Mimics the streaming urlopen object used by the route."""
+
     def __init__(self, body=b"body"):
-        self._body = body
+        self._buffer = body
+        self._pos = 0
         self.headers = {}
+        self.closed = False
 
-    def read(self):
-        return self._body
+    def read(self, size=-1):
+        if size is None or size < 0:
+            chunk = self._buffer[self._pos:]
+            self._pos = len(self._buffer)
+            return chunk
+        chunk = self._buffer[self._pos:self._pos + size]
+        self._pos += len(chunk)
+        return chunk
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        return False
+    def close(self):
+        self.closed = True
 
 
 @pytest.fixture
