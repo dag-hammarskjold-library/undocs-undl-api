@@ -30,9 +30,21 @@ Parameters:
       since cold-start latency is acceptable for this deployment; raise
       this later if a stricter latency target is set.
 
+  ReservedConcurrentExecutions:
+    Type: Number
+    Default: 100
+    Description: >
+      Maximum number of simultaneous executions. Because Function URLs have
+      no built-in request throttling (unlike the previous HTTP API), this
+      caps concurrency to protect against runaway cost and abuse. At the
+      expected ~0.75 req/sec baseline this ceiling is generous; raise it if
+      legitimate concurrent streaming demand grows.
+
 Globals:
   Function:
-    Timeout: 10
+    # 120s accommodates streaming the largest documents (>100 MB) to slower
+    # clients. Function URLs support up to 15 minutes if ever needed.
+    Timeout: 120
     MemorySize: 512
 
 Resources:
@@ -47,6 +59,10 @@ Resources:
           FLASK_ENV: !Ref FlaskEnv
           PORT: "8000"
           AWS_LWA_READINESS_CHECK_PATH: /health
+          # Enable response streaming in the Lambda Web Adapter so large
+          # files are streamed to the client rather than buffered (which
+          # would hit the 6 MB synchronous response payload limit).
+          AWS_LWA_INVOKE_MODE: response_stream
       Policies:
         - Statement:
             - Effect: Allow
@@ -54,39 +70,25 @@ Resources:
               Resource:
                 - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/prodISSU-admin-connect-string
                 - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/devISSU-admin-connect-string
-      Events:
-        Health:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref UndlHttpApi
-            Path: /health
-            Method: GET
-        Redirect:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref UndlHttpApi
-            Path: /{language}/{symbol+}
-            Method: GET
+      # A Lambda Function URL is used instead of an HTTP API because response
+      # streaming (up to 20 MB soft limit, raisable to 6 GB) is only supported
+      # via Function URLs, not API Gateway.
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: RESPONSE_STREAM
+      # Function URLs have no built-in throttling, so concurrency is capped
+      # here as the equivalent safeguard.
+      ReservedConcurrentExecutions: !Ref ReservedConcurrentExecutions
       AutoPublishAlias: live
     Metadata:
       Dockerfile: Dockerfile
       DockerContext: ..
       DockerTag: latest
 
-  UndlHttpApi:
-    Type: AWS::Serverless::HttpApi
-    Properties:
-      Description: Public endpoint for UNDL document redirects (UNDOCS failover target)
-      DefaultRouteSettings:
-        # Sized for a 1-2 million hits/month baseline. Revisit once real
-        # peak-to-average numbers or a formal load-test result are available.
-        ThrottlingBurstLimit: 1000
-        ThrottlingRateLimit: 500
-
 Outputs:
-  ApiEndpoint:
+  FunctionUrl:
     Description: Base URL for the failover API (this is the <base_url> in the ToR's endpoint pattern)
-    Value: !Sub https://${UndlHttpApi}.execute-api.${AWS::Region}.amazonaws.com
+    Value: !GetAtt UndlApiFunctionUrl.FunctionUrl
   FunctionArn:
     Description: ARN of the underlying Lambda function
     Value: !GetAtt UndlApiFunction.Arn

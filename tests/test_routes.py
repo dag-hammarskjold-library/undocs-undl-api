@@ -45,55 +45,120 @@ def client():
 
 
 # ---------------------------------------------------------------------------
-# Successful proxy response
+# Successful streaming response
 # ---------------------------------------------------------------------------
 
 class FakeRemoteResponse:
-    def __init__(self, body, headers=None):
-        self._body = body
-        self.headers = headers or {}
+    """Mimics the object returned by urlopen for streaming reads."""
 
-    def read(self):
-        return self._body
+    def __init__(self, body: bytes, headers=None):
+        self._buffer = body
+        self._pos = 0
+        self.headers = headers if headers is not None else {}
+        self.closed = False
 
-    def __enter__(self):
-        return self
+    def read(self, size=-1):
+        if size is None or size < 0:
+            chunk = self._buffer[self._pos:]
+            self._pos = len(self._buffer)
+            return chunk
+        chunk = self._buffer[self._pos:self._pos + size]
+        self._pos += len(chunk)
+        return chunk
 
-    def __exit__(self, exc_type, exc, tb):
-        return False
+    def close(self):
+        self.closed = True
 
 
-class TestSuccessfulProxyResponse:
+class _Headers(dict):
+    """dict with a .get that behaves like http.client headers."""
+
+
+def _fake_response(body=b"file-body", content_type="application/pdf"):
+    return FakeRemoteResponse(body, _Headers({"Content-Type": content_type}))
+
+
+class TestSuccessfulStreamingResponse:
     def test_returns_200(self, client):
         with patch("app.db.find_document", return_value=SAMPLE_DOC), \
-             patch("app.routes.urlopen", return_value=FakeRemoteResponse(b"file-body", {"get": lambda *args, **kwargs: None})):
+             patch("app.routes.urlopen", return_value=_fake_response()):
             response = client.get("/en/A/79/PV.1")
         assert response.status_code == 200
 
-    def test_returns_remote_body(self, client):
+    def test_streams_full_body(self, client):
         with patch("app.db.find_document", return_value=SAMPLE_DOC), \
-             patch("app.routes.urlopen", return_value=FakeRemoteResponse(b"file-body")):
+             patch("app.routes.urlopen", return_value=_fake_response(b"the-pdf-bytes")):
             response = client.get("/en/A/79/PV.1")
-        assert response.data == b"file-body"
+        assert response.data == b"the-pdf-bytes"
+
+    def test_streams_body_larger_than_chunk_size(self, client):
+        # Body larger than STREAM_CHUNK_SIZE to exercise multi-chunk streaming
+        big_body = b"x" * (64 * 1024 * 3 + 17)
+        with patch("app.db.find_document", return_value=SAMPLE_DOC), \
+             patch("app.routes.urlopen", return_value=_fake_response(big_body)):
+            response = client.get("/en/A/79/PV.1")
+        assert response.data == big_body
 
     def test_does_not_set_location_header(self, client):
         with patch("app.db.find_document", return_value=SAMPLE_DOC), \
-             patch("app.routes.urlopen", return_value=FakeRemoteResponse(b"file-body")):
+             patch("app.routes.urlopen", return_value=_fake_response()):
             response = client.get("/en/A/79/PV.1")
         assert "Location" not in response.headers
 
+    def test_content_disposition_uses_filename(self, client):
+        with patch("app.db.find_document", return_value=SAMPLE_DOC), \
+             patch("app.routes.urlopen", return_value=_fake_response()):
+            response = client.get("/en/A/79/PV.1")
+        assert response.headers["Content-Disposition"] == (
+            'inline; filename="A_79_PV.1-EN.pdf"'
+        )
+
+    def test_content_disposition_falls_back_when_no_filename(self, client):
+        doc = dict(SAMPLE_DOC)
+        doc.pop("filename")
+        with patch("app.db.find_document", return_value=doc), \
+             patch("app.routes.urlopen", return_value=_fake_response()):
+            response = client.get("/en/A/79/PV.1")
+        # Fallback is built from symbol (slashes -> underscores) + language
+        assert response.headers["Content-Disposition"] == (
+            'inline; filename="A_79_PV.1-EN.pdf"'
+        )
+
+    def test_fallback_filename_for_ot_uses_uppercased_code(self, client):
+        doc = dict(SAMPLE_DOC)
+        doc.pop("filename")
+        with patch("app.db.find_document", return_value=doc), \
+             patch("app.routes.urlopen", return_value=_fake_response()):
+            response = client.get("/ot/A/79/PV.1")
+        assert response.headers["Content-Disposition"] == (
+            'inline; filename="A_79_PV.1-OT.pdf"'
+        )
+
     def test_find_document_called_with_uppercased_language(self, client):
         with patch("app.db.find_document", return_value=SAMPLE_DOC) as mock_find, \
-             patch("app.routes.urlopen", return_value=FakeRemoteResponse(b"file-body")):
+             patch("app.routes.urlopen", return_value=_fake_response()):
             client.get("/en/A/79/PV.1")
         mock_find.assert_called_once_with("A/79/PV.1", "EN")
 
     def test_all_valid_language_codes_accepted(self, client):
         for lang in ("ar", "en", "fr", "ru", "es", "zh", "ot"):
             with patch("app.db.find_document", return_value=SAMPLE_DOC), \
-                 patch("app.routes.urlopen", return_value=FakeRemoteResponse(b"file-body")):
+                 patch("app.routes.urlopen", return_value=_fake_response()):
                 response = client.get(f"/{lang}/A/79/PV.1")
             assert response.status_code == 200, f"Expected 200 for language '{lang}'"
+
+
+# ---------------------------------------------------------------------------
+# 502 — origin fetch failure
+# ---------------------------------------------------------------------------
+
+class TestOriginFetchFailure:
+    def test_returns_502_on_urlerror(self, client):
+        from urllib.error import URLError
+        with patch("app.db.find_document", return_value=SAMPLE_DOC), \
+             patch("app.routes.urlopen", side_effect=URLError("boom")):
+            response = client.get("/en/A/79/PV.1")
+        assert response.status_code == 502
 
 
 # ---------------------------------------------------------------------------
