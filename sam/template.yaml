@@ -40,12 +40,26 @@ Parameters:
       expected ~0.75 req/sec baseline this ceiling is generous; raise it if
       legitimate concurrent streaming demand grows.
 
+  ProjectTag:
+    Type: String
+    Default: undocs-undl-api
+    Description: >
+      Value for the 'Project' cost-allocation tag applied to all resources
+      in this stack. Activate the 'Project' tag under Billing > Cost
+      allocation tags to break costs down by project in Cost Explorer.
+
 Globals:
   Function:
     # 120s accommodates streaming the largest documents (>100 MB) to slower
     # clients. Function URLs support up to 15 minutes if ever needed.
     Timeout: 120
     MemorySize: 512
+    # Applied to the Lambda function (and, for Serverless::Function, its
+    # generated resources). Stack-level tagging (see Deploy note in README)
+    # covers the CloudFormation-managed resources more broadly.
+    Tags:
+      Project: !Ref ProjectTag
+      Environment: !Ref FlaskEnv
 
 Resources:
   UndlApiFunction:
