@@ -80,13 +80,59 @@ class TestRequestLogging:
         assert "timestamp" in logged
         assert "response_time_ms" in logged
 
+    def test_log_includes_new_fields(self, client):
+        with patch("app.db.find_document", return_value=SAMPLE_DOC), \
+             patch("app.routes.urlopen", return_value=FakeRemoteResponse(b"body")), \
+             patch("app.db.log_request") as mock_log:
+            client.get(
+                "/en/A/79/PV.1",
+                headers={
+                    "User-Agent": "pytest-agent/1.0",
+                    "Referer": "https://example.org/page",
+                },
+            )
+        logged = mock_log.call_args[0][0]
+        assert logged["user_agent"] == "pytest-agent/1.0"
+        assert logged["referrer"] == "https://example.org/page"
+        assert logged["method"] == "GET"
+        assert logged["outcome"] == "success"
+
+    def test_outcome_labels_map_correctly(self, client):
+        # 404 -> not_found
+        with patch("app.db.find_document", return_value=None), \
+             patch("app.db.record_missing_file"), \
+             patch("app.db.log_request") as mock_log:
+            client.get("/en/UNKNOWN/SYMBOL")
+        assert mock_log.call_args[0][0]["outcome"] == "not_found"
+
+        # 400 -> invalid_language
+        with patch("app.db.log_request") as mock_log:
+            client.get("/xx/A/79/PV.1")
+        assert mock_log.call_args[0][0]["outcome"] == "invalid_language"
+
     def test_log_written_on_404(self, client):
         with patch("app.db.find_document", return_value=None), \
+             patch("app.db.record_missing_file"), \
              patch("app.db.log_request") as mock_log:
             client.get("/en/UNKNOWN/SYMBOL")
         mock_log.assert_called_once()
         logged = mock_log.call_args[0][0]
         assert logged["status_code"] == 404
+
+    def test_missing_file_recorded_on_404(self, client):
+        with patch("app.db.find_document", return_value=None), \
+             patch("app.db.log_request"), \
+             patch("app.db.record_missing_file") as mock_missing:
+            client.get("/en/UNKNOWN/SYMBOL")
+        mock_missing.assert_called_once_with("UNKNOWN/SYMBOL", "en")
+
+    def test_missing_file_not_recorded_on_success(self, client):
+        with patch("app.db.find_document", return_value=SAMPLE_DOC), \
+             patch("app.routes.urlopen", return_value=FakeRemoteResponse(b"body")), \
+             patch("app.db.log_request"), \
+             patch("app.db.record_missing_file") as mock_missing:
+            client.get("/en/A/79/PV.1")
+        mock_missing.assert_not_called()
 
     def test_log_written_on_400(self, client):
         with patch("app.db.log_request") as mock_log:

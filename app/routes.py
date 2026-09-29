@@ -65,6 +65,13 @@ def resolve_document(language: str, symbol: str):
     doc = db.find_document(symbol, db_language)
 
     if doc is None:
+        # Record the miss so a human can review it (the file may be unposted,
+        # or need retrieval from another system such as ODS). Never let a
+        # logging failure affect the response.
+        try:
+            db.record_missing_file(symbol, language.lower())
+        except Exception:
+            pass
         return _error(
             f"The document '{symbol}' is not available in '{language.lower()}'.",
             404,

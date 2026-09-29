@@ -11,7 +11,11 @@ def create_app():
     app = Flask(__name__)
 
     config_obj = config.load_config()
-    db.init_db(config_obj.mongo_uri, config_obj.mongo_db)
+    db.init_db(
+        config_obj.mongo_uri,
+        config_obj.mongo_db,
+        config_obj.log_db_name,
+    )
 
     # ------------------------------------------------------------------
     # Health endpoint
@@ -62,6 +66,10 @@ def create_app():
                 "symbol": symbol,
                 "status_code": response.status_code,
                 "response_time_ms": response_time_ms,
+                "user_agent": request.headers.get("User-Agent"),
+                "referrer": request.headers.get("Referer"),
+                "method": request.method,
+                "outcome": _classify_outcome(response.status_code),
             })
         except Exception:
             app.logger.exception("Failed to write request log")
@@ -69,3 +77,18 @@ def create_app():
         return response
 
     return app
+
+
+def _classify_outcome(status_code: int) -> str:
+    """Map an HTTP status code to a normalized outcome label for analytics."""
+    if 200 <= status_code < 300:
+        return "success"
+    if status_code == 400:
+        return "invalid_language"
+    if status_code == 404:
+        return "not_found"
+    if status_code == 502:
+        return "fetch_error"
+    if status_code >= 500:
+        return "server_error"
+    return "other"

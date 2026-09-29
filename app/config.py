@@ -9,10 +9,15 @@ class ConfigError(Exception):
 
 
 class Config:
-    def __init__(self, mongo_uri: str, mongo_db: str, flask_env: str):
+    def __init__(self, mongo_uri: str, mongo_db: str, flask_env: str,
+                 log_db_name: str = "undocs_api"):
         self.mongo_uri = mongo_uri
         self.mongo_db = mongo_db
         self.flask_env = flask_env
+        # Logs are written to a dedicated database (same cluster / connection
+        # string as UNDL, different database) so analytics data is isolated
+        # from the source document metadata.
+        self.log_db_name = log_db_name
 
 
 def _fetch_ssm_parameter(client, name: str) -> str:
@@ -56,4 +61,5 @@ def load_config() -> Config:
         mongo_uri=mongo_uri,
         mongo_db=mongo_db,
         flask_env=flask_env,
+        log_db_name="undocs_api",
     )
