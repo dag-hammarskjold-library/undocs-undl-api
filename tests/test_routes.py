@@ -37,7 +37,8 @@ FAKE_CONFIG = Config(
 def client():
     with patch("app.config.load_config", return_value=FAKE_CONFIG), \
          patch("app.db.init_db"), \
-         patch("app.db.log_request"):
+         patch("app.db.log_request"), \
+         patch("app.db.record_missing_file"):
         app = create_app()
         app.config["TESTING"] = True
         with app.test_client() as c:
