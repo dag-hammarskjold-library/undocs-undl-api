@@ -141,6 +141,12 @@ class TestRequestLogging:
         logged = mock_log.call_args[0][0]
         assert logged["status_code"] == 400
 
+    def test_health_check_is_not_logged(self, client):
+        """Health probes are internal noise and must not be logged."""
+        with patch("app.db.log_request") as mock_log:
+            client.get("/health")
+        mock_log.assert_not_called()
+
     def test_response_time_ms_is_non_negative_integer(self, client):
         with patch("app.db.find_document", return_value=SAMPLE_DOC), \
              patch("app.db.log_request") as mock_log:
