@@ -14,6 +14,7 @@ def create_app():
     db.init_db(
         config_obj.mongo_uri,
         config_obj.mongo_db,
+        config_obj.log_mongo_uri,
         config_obj.log_db_name,
     )
 

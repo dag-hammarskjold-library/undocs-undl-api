@@ -84,6 +84,9 @@ Resources:
               Resource:
                 - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/prodISSU-admin-connect-string
                 - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/devISSU-admin-connect-string
+                # Dedicated connection strings for the undocs_api logs database
+                - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/dev-undocs-api-connect-string
+                - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/prod-undocs-api-connect-string
       # A Lambda Function URL is used instead of an HTTP API because response
       # streaming (up to 20 MB soft limit, raisable to 6 GB) is only supported
       # via Function URLs, not API Gateway.
