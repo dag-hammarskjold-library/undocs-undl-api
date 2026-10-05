@@ -3,9 +3,10 @@ from datetime import datetime, timezone
 from pymongo import MongoClient
 from pymongo.collation import Collation
 
-_client = None
-_db = None       # UNDL database (document lookups)
-_log_db = None   # undocs_api database (analytics: request_logs, missing_files)
+_client = None       # UNDL client (document lookups)
+_log_client = None   # dedicated logs client (undocs_api)
+_db = None           # UNDL database (document lookups)
+_log_db = None       # undocs_api database (analytics: request_logs, missing_files)
 
 # Case-insensitive collation matching the existing index on identifiers.value
 _ci_collation = Collation(locale="en", strength=2)
@@ -14,20 +15,36 @@ _ci_collation = Collation(locale="en", strength=2)
 _REQUEST_LOG_TTL_SECONDS = 90 * 24 * 60 * 60
 
 
-def init_db(mongo_uri: str, mongo_db: str, log_db_name: str = "undocs_api"):
+def init_db(mongo_uri: str, mongo_db: str,
+            log_mongo_uri: str | None = None,
+            log_db_name: str = "undocs_api"):
     """
-    Initialise the MongoDB client and database handles. Called once at startup.
+    Initialise the MongoDB clients and database handles. Called once at startup.
+
+    Document lookups use `mongo_uri` / `mongo_db`. Analytics logs use their own
+    connection (`log_mongo_uri`) so the logs database can be served by a user
+    scoped to it. If `log_mongo_uri` is None, logging is disabled: the log
+    handles stay None and log writes become no-ops (document serving is
+    unaffected).
 
     Args:
-        mongo_uri:   Connection string (shared by both databases).
-        mongo_db:    UNDL database name, used for document lookups.
-        log_db_name: Database name for analytics logs (default 'undocs_api').
+        mongo_uri:     UNDL connection string (document lookups).
+        mongo_db:      UNDL database name.
+        log_mongo_uri: Dedicated connection string for the logs database, or
+                       None to disable logging.
+        log_db_name:   Analytics logs database name (default 'undocs_api').
     """
-    global _client, _db, _log_db
+    global _client, _log_client, _db, _log_db
     _client = MongoClient(mongo_uri)
     _db = _client[mongo_db]
-    _log_db = _client[log_db_name]
-    _ensure_log_indexes()
+
+    if log_mongo_uri:
+        _log_client = MongoClient(log_mongo_uri)
+        _log_db = _log_client[log_db_name]
+        _ensure_log_indexes()
+    else:
+        _log_client = None
+        _log_db = None
 
 
 def _ensure_log_indexes():
@@ -60,9 +77,10 @@ def get_db():
 
 
 def get_log_db():
-    """Return the analytics (undocs_api) database handle."""
-    if _log_db is None:
-        raise RuntimeError("Database has not been initialised. Call init_db() first.")
+    """
+    Return the analytics (undocs_api) database handle, or None if logging is
+    not configured (no dedicated log connection string was provided).
+    """
     return _log_db
 
 
@@ -97,6 +115,8 @@ def log_request(data: dict):
               method, outcome).
     """
     db = get_log_db()
+    if db is None:
+        return  # logging disabled (no dedicated log connection configured)
     db.request_logs.insert_one(data)
 
 
@@ -114,6 +134,8 @@ def record_missing_file(symbol: str, language: str):
         language: Requested (external, lowercase) language code.
     """
     db = get_log_db()
+    if db is None:
+        return  # logging disabled (no dedicated log connection configured)
     now = datetime.now(timezone.utc)
     db.missing_files.update_one(
         {"symbol": symbol, "language": language},
