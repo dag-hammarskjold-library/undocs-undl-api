@@ -54,6 +54,12 @@ def create_app():
     @app.after_request
     def write_request_log(response):
         try:
+            # Don't log health checks — these are internal readiness/liveness
+            # probes (e.g. the Lambda Web Adapter, load balancer) and are not
+            # meaningful analytics data.
+            if request.endpoint == "health":
+                return response
+
             response_time_ms = round((monotonic() - g.start_time) * 1000)
 
             view_args = request.view_args or {}
